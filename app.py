@@ -37,7 +37,7 @@ def extract_frames(video_path, interval_minutes=1):
         if frame_count % interval_frames == 0:
             # Convert frame to grayscale for SSIM
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            if last_frame is None or ssim(gray_frame, last_frame, data_range=gray_frame.max() - gray_frame.min()) < 0.95:
+            if last_frame is None or ssim(gray_frame, last_frame, data_range=gray_frame.max() - gray_frame.min()) < 0.90:
                 frame_path = f"frames/frame_{saved_frame_count}.jpg"
                 cv2.imwrite(frame_path, frame)
                 enhance_image(frame_path)  # Enhance the image after saving

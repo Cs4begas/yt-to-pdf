@@ -1,0 +1,5 @@
+opencv-python
+Pillow
+fpdf
+Flask
+scikit-image

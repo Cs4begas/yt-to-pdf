@@ -4,7 +4,8 @@ from PIL import Image
 import os
 from skimage.metrics import structural_similarity as ssim
 import numpy as np
-
+import tkinter as tk
+from tkinter import filedialog, messagebox
 
 def extract_frames(video_path, interval_minutes=1):
     """
@@ -77,45 +78,53 @@ def create_pdf_from_images(image_paths, pdf_path):
 
     pdf.output(pdf_path, "F")
 
-from flask import Flask, request, send_file, render_template_string
-import werkzeug.utils
+def process_video(video_path):
+    """
+    Processes a single video file.
+    """
+    frame_paths = extract_frames(video_path, interval_minutes=1)
+    if frame_paths:
+        pdf_path = f"{os.path.splitext(os.path.basename(video_path))[0]}.pdf"
+        create_pdf_from_images(frame_paths, pdf_path)
+        messagebox.showinfo("Success", f"Created PDF for {os.path.basename(video_path)} at {pdf_path}")
 
-app = Flask(__name__)
+def process_videos_from_folder(folder_path):
+    """
+    Processes all video files in a given folder.
+    """
+    for filename in os.listdir(folder_path):
+        if filename.endswith((".mp4", ".avi", ".mov")):
+            video_path = os.path.join(folder_path, filename)
+            process_video(video_path)
 
-UPLOAD_FOLDER = 'uploads'
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+def select_file():
+    """
+    Opens a file dialog to select a single video file.
+    """
+    filepath = filedialog.askopenfilename(
+        title="Select a Video File",
+        filetypes=(("Video Files", "*.mp4 *.avi *.mov"), ("All files", "*.*"))
+    )
+    if filepath:
+        process_video(filepath)
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-@app.route('/', methods=['GET', 'POST'])
-def upload_file():
-    if request.method == 'POST':
-        if 'file' not in request.files:
-            return 'No file part'
-        file = request.files['file']
-        if file.filename == '':
-            return 'No selected file'
-        if file:
-            filename = werkzeug.utils.secure_filename(file.filename)
-            video_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(video_path)
-
-            frame_paths = extract_frames(video_path, interval_minutes=1)
-            pdf_path = "output.pdf"
-            create_pdf_from_images(frame_paths, pdf_path)
-
-            return send_file(pdf_path, as_attachment=True)
-
-    return '''
-    <!doctype html>
-    <title>Upload a Video to Convert to PDF</title>
-    <h1>Upload a Video to Convert to PDF</h1>
-    <form method=post enctype=multipart/form-data>
-      <input type=file name=file>
-      <input type=submit value=Upload>
-    </form>
-    '''
+def select_folder():
+    """
+    Opens a dialog to select a folder containing video files.
+    """
+    folderpath = filedialog.askdirectory(title="Select a Folder with Videos")
+    if folderpath:
+        process_videos_from_folder(folderpath)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    root = tk.Tk()
+    root.title("Video to PDF Converter")
+    root.geometry("300x150")
+
+    btn_select_file = tk.Button(root, text="Select Video File", command=select_file)
+    btn_select_file.pack(pady=10)
+
+    btn_select_folder = tk.Button(root, text="Select Folder", command=select_folder)
+    btn_select_folder.pack(pady=10)
+
+    root.mainloop()

@@ -96,7 +96,7 @@ def process_videos_from_folder(folder_path):
     filenames = sorted(os.listdir(folder_path))
     print(f"Found {len(filenames)} files.")
     for filename in filenames:
-        if filename.endswith((".mp4", ".avi", ".mov")):
+        if filename.endswith((".mp4", ".avi", ".mov", ".webm", ".mkv")):
             video_path = os.path.join(folder_path, filename)
             print(f"Processing video: {video_path}")
             process_video(video_path)
@@ -107,7 +107,7 @@ def select_file():
     """
     filepath = filedialog.askopenfilename(
         title="Select a Video File",
-        filetypes=(("Video Files", "*.mp4 *.avi *.mov"), ("All files", "*.*"))
+        filetypes=(("Video Files", "*.mp4 *.avi *.mov *.webm *.mkv"), ("All files", "*.*"))
     )
     if filepath:
         process_video(filepath)

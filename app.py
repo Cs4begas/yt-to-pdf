@@ -90,11 +90,15 @@ def process_video(video_path):
 
 def process_videos_from_folder(folder_path):
     """
-    Processes all video files in a given folder.
+    Processes all video files in a given folder, sorted by name.
     """
-    for filename in os.listdir(folder_path):
+    print(f"Processing videos from folder: {folder_path}")
+    filenames = sorted(os.listdir(folder_path))
+    print(f"Found {len(filenames)} files.")
+    for filename in filenames:
         if filename.endswith((".mp4", ".avi", ".mov")):
             video_path = os.path.join(folder_path, filename)
+            print(f"Processing video: {video_path}")
             process_video(video_path)
 
 def select_file():
@@ -113,6 +117,7 @@ def select_folder():
     Opens a dialog to select a folder containing video files.
     """
     folderpath = filedialog.askdirectory(title="Select a Folder with Videos")
+    print(f"Selected folder: {folderpath}")
     if folderpath:
         process_videos_from_folder(folderpath)
 

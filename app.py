@@ -41,7 +41,6 @@ def extract_frames(video_path, interval_minutes=1):
             if last_frame is None or ssim(gray_frame, last_frame, data_range=gray_frame.max() - gray_frame.min()) < 0.90:
                 frame_path = f"frames/frame_{saved_frame_count}.jpg"
                 cv2.imwrite(frame_path, frame)
-                enhance_image(frame_path)  # Enhance the image after saving
                 frame_paths.append(frame_path)
                 saved_frame_count += 1
                 last_frame = gray_frame
@@ -50,18 +49,6 @@ def extract_frames(video_path, interval_minutes=1):
 
     cap.release()
     return frame_paths
-
-def enhance_image(image_path):
-    """
-    Enhances the resolution of an image to Full HD (1920x1080).
-
-    Args:
-        image_path (str): The path to the image file.
-    """
-    img = cv2.imread(image_path)
-    resized_img = cv2.resize(img, (1920, 1080), interpolation=cv2.INTER_CUBIC)
-    cv2.imwrite(image_path, resized_img)
-
 
 def create_pdf_from_images(image_paths, pdf_path):
     """

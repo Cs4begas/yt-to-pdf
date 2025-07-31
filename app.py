@@ -111,7 +111,7 @@ def process_video(video_path):
     if frame_paths:
         pdf_path = f"{os.path.splitext(os.path.basename(video_path))[0]}.pdf"
         create_pdf_from_images(frame_paths, pdf_path)
-        messagebox.showinfo("Success", f"Created PDF for {os.path.basename(video_path)} at {pdf_path}")
+        print(f"Successfully created PDF for {os.path.basename(video_path)} at {pdf_path}")
 
 def process_videos_from_folder(folder_path):
     """

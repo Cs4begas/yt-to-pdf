@@ -6,14 +6,21 @@ from skimage.metrics import structural_similarity as ssim
 import numpy as np
 import tkinter as tk
 from tkinter import filedialog, messagebox
+import re
 
-def extract_frames(video_path, interval_minutes=1):
+def natural_sort_key(s):
+    """
+    Key for natural sorting.
+    """
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+
+def extract_frames(video_path, interval_seconds=30):
     """
     Extracts frames from a video at a given interval, avoiding duplicate frames.
 
     Args:
         video_path (str): The path to the video file.
-        interval_minutes (int): The interval in minutes between each captured frame.
+        interval_seconds (int): The interval in seconds between each captured frame.
 
     Returns:
         list: A list of paths to the extracted frames.
@@ -23,7 +30,7 @@ def extract_frames(video_path, interval_minutes=1):
 
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
-    interval_frames = int(fps * interval_minutes * 60)
+    interval_frames = int(fps * interval_seconds)
 
     frame_count = 0
     saved_frame_count = 0
@@ -39,8 +46,12 @@ def extract_frames(video_path, interval_minutes=1):
             # Convert frame to grayscale for SSIM
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             if last_frame is None or ssim(gray_frame, last_frame, data_range=gray_frame.max() - gray_frame.min()) < 0.90:
+                # Resize frame to half its original size
+                height, width, _ = frame.shape
+                resized_frame = cv2.resize(frame, (width // 2, height // 2))
+
                 frame_path = f"frames/frame_{saved_frame_count}.jpg"
-                cv2.imwrite(frame_path, frame)
+                cv2.imwrite(frame_path, resized_frame)
                 frame_paths.append(frame_path)
                 saved_frame_count += 1
                 last_frame = gray_frame
@@ -52,16 +63,18 @@ def extract_frames(video_path, interval_minutes=1):
 
 def create_pdf_from_images(image_paths, pdf_path):
     """
-    Creates a PDF file from a list of images.
+    Creates a PDF file from a list of images, with two images per page.
 
     Args:
         image_paths (list): A list of paths to the image files.
         pdf_path (str): The path to save the output PDF file.
     """
-    pdf = FPDF(orientation='L', unit='mm', format='A4')
-    for image_path in image_paths:
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    for i in range(0, len(image_paths), 2):
         pdf.add_page()
-        pdf.image(image_path, x=0, y=0, w=297, h=210)
+        pdf.image(image_paths[i], x=10, y=10, w=190)
+        if i + 1 < len(image_paths):
+            pdf.image(image_paths[i+1], x=10, y=150, w=190)
 
     pdf.output(pdf_path, "F")
 
@@ -69,7 +82,7 @@ def process_video(video_path):
     """
     Processes a single video file.
     """
-    frame_paths = extract_frames(video_path, interval_minutes=1)
+    frame_paths = extract_frames(video_path)
     if frame_paths:
         pdf_path = f"{os.path.splitext(os.path.basename(video_path))[0]}.pdf"
         create_pdf_from_images(frame_paths, pdf_path)
@@ -77,10 +90,10 @@ def process_video(video_path):
 
 def process_videos_from_folder(folder_path):
     """
-    Processes all video files in a given folder, sorted by name.
+    Processes all video files in a given folder, sorted naturally.
     """
     print(f"Processing videos from folder: {folder_path}")
-    filenames = sorted(os.listdir(folder_path))
+    filenames = sorted(os.listdir(folder_path), key=natural_sort_key)
     print(f"Found {len(filenames)} files.")
     for filename in filenames:
         if filename.endswith((".mp4", ".avi", ".mov", ".webm", ".mkv")):

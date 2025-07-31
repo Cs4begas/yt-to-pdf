@@ -14,7 +14,7 @@ def natural_sort_key(s):
     """
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
 
-def extract_frames(video_path, interval_seconds=30):
+def extract_frames(video_path, interval_seconds=15):
     """
     Extracts frames from a video at a given interval, avoiding duplicate frames.
 
@@ -43,10 +43,12 @@ def extract_frames(video_path, interval_seconds=30):
             break
 
         if frame_count % interval_frames == 0:
-            # Convert frame to grayscale for SSIM
+            # Convert frame to grayscale and resize for faster SSIM comparison
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            if last_frame is None or ssim(gray_frame, last_frame, data_range=gray_frame.max() - gray_frame.min()) < 0.90:
-                # Resize frame to half its original size
+            small_gray_frame = cv2.resize(gray_frame, (width // 4, height // 4))
+
+            if last_frame is None or ssim(small_gray_frame, last_frame, data_range=small_gray_frame.max() - small_gray_frame.min()) < 0.70:
+                # Resize frame to half its original size for saving
                 height, width, _ = frame.shape
                 resized_frame = cv2.resize(frame, (width // 2, height // 2))
 
@@ -54,7 +56,7 @@ def extract_frames(video_path, interval_seconds=30):
                 cv2.imwrite(frame_path, resized_frame)
                 frame_paths.append(frame_path)
                 saved_frame_count += 1
-                last_frame = gray_frame
+                last_frame = small_gray_frame
 
         frame_count += 1
 

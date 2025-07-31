@@ -43,13 +43,13 @@ def extract_frames(video_path, interval_seconds=15):
             break
 
         if frame_count % interval_frames == 0:
+            height, width, _ = frame.shape
             # Convert frame to grayscale and resize for faster SSIM comparison
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             small_gray_frame = cv2.resize(gray_frame, (width // 4, height // 4))
 
             if last_frame is None or ssim(small_gray_frame, last_frame, data_range=small_gray_frame.max() - small_gray_frame.min()) < 0.70:
                 # Resize frame to half its original size for saving
-                height, width, _ = frame.shape
                 resized_frame = cv2.resize(frame, (width // 2, height // 2))
 
                 frame_path = f"frames/frame_{saved_frame_count}.jpg"

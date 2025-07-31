@@ -14,13 +14,22 @@ def natural_sort_key(s):
     """
     return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
 
-def extract_frames(video_path, interval_seconds=15):
+def detect_significant_motion(frame1, frame2, motion_threshold=12):
+    """
+    Detects significant motion between two frames.
+    """
+    diff = cv2.absdiff(frame1, frame2)
+    motion_score = np.mean(diff)
+    return motion_score > motion_threshold
+
+def extract_frames(video_path, interval_seconds=7, ssim_threshold=0.55):
     """
     Extracts frames from a video at a given interval, avoiding duplicate frames.
 
     Args:
         video_path (str): The path to the video file.
         interval_seconds (int): The interval in seconds between each captured frame.
+        ssim_threshold (float): The structural similarity threshold for duplicate detection.
 
     Returns:
         list: A list of paths to the extracted frames.
@@ -36,6 +45,7 @@ def extract_frames(video_path, interval_seconds=15):
     saved_frame_count = 0
     frame_paths = []
     last_frame = None
+    last_saved_frame = None
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -44,11 +54,22 @@ def extract_frames(video_path, interval_seconds=15):
 
         if frame_count % interval_frames == 0:
             height, width, _ = frame.shape
-            # Convert frame to grayscale and resize for faster SSIM comparison
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            small_gray_frame = cv2.resize(gray_frame, (width // 4, height // 4))
 
-            if last_frame is None or ssim(small_gray_frame, last_frame, data_range=small_gray_frame.max() - small_gray_frame.min()) < 0.70:
+            should_save = False
+            if last_frame is None:
+                should_save = True
+            else:
+                # Resize for faster comparison
+                small_gray_frame = cv2.resize(gray_frame, (width // 4, height // 4))
+                small_last_frame = cv2.resize(last_frame, (width // 4, height // 4))
+
+                if ssim(small_gray_frame, small_last_frame, data_range=small_gray_frame.max() - small_gray_frame.min()) < ssim_threshold:
+                    should_save = True
+                elif detect_significant_motion(small_gray_frame, small_last_frame):
+                    should_save = True
+
+            if should_save:
                 # Resize frame to half its original size for saving
                 resized_frame = cv2.resize(frame, (width // 2, height // 2))
 
@@ -56,7 +77,9 @@ def extract_frames(video_path, interval_seconds=15):
                 cv2.imwrite(frame_path, resized_frame)
                 frame_paths.append(frame_path)
                 saved_frame_count += 1
-                last_frame = small_gray_frame
+                last_saved_frame = gray_frame.copy()
+
+            last_frame = gray_frame.copy()
 
         frame_count += 1
 

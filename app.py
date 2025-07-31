@@ -39,36 +39,10 @@ def calculate_text_area(frame):
     text_ratio = text_pixels / total_pixels
     return text_ratio
 
-def should_save_frame_with_content_priority(current_frame, saved_frames, ssim_threshold=0.70):
-    """Decides whether to save or replace a frame based on content."""
-    if len(saved_frames) == 0:
-        return True, current_frame
+def multi_stage_capture(video_path, frame_interval=3):
+    """3-stage capture: Collect, Filter, Select."""
 
-    last_frame = saved_frames[-1]
-
-    ssim_score = calculate_ssim(current_frame, last_frame)
-
-    if ssim_score < ssim_threshold:
-        return True, current_frame
-
-    current_density = calculate_content_density(current_frame)
-    current_text_ratio = calculate_text_area(current_frame)
-
-    last_density = calculate_content_density(last_frame)
-    last_text_ratio = calculate_text_area(last_frame)
-
-    current_content_score = (current_density * 0.6) + (current_text_ratio * 0.4)
-    last_content_score = (last_density * 0.6) + (last_text_ratio * 0.4)
-
-    content_improvement_threshold = 0.15
-    if current_content_score > last_content_score * (1 + content_improvement_threshold):
-        saved_frames[-1] = current_frame
-        return False, current_frame
-
-    return False, last_frame
-
-def enhanced_frame_selection(video_path, frame_interval=8, ssim_threshold=0.65):
-    """A more advanced frame capture system."""
+    # Stage 1: Collect frames every 3 seconds
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print(f"Error: Could not open video {video_path}")
@@ -79,37 +53,69 @@ def enhanced_frame_selection(video_path, frame_interval=8, ssim_threshold=0.65):
         print(f"Warning: Could not get FPS for video {video_path}. Assuming 30 FPS.")
         fps = 30
 
-    saved_frames = []
-    frame_timestamps = []
-
     frame_step = int(fps * frame_interval)
+
+    raw_frames = []
     frame_count = 0
 
+    print("Stage 1: Collecting frames...")
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
         if frame_count % frame_step == 0:
-            should_save, selected_frame = should_save_frame_with_content_priority(
-                frame, saved_frames, ssim_threshold
-            )
-
-            if should_save:
-                saved_frames.append(selected_frame)
-                timestamp = frame_count / fps
-                frame_timestamps.append(timestamp)
-
-                density = calculate_content_density(selected_frame)
-                text_ratio = calculate_text_area(selected_frame)
-                content_score = (density * 0.6) + (text_ratio * 0.4)
-
-                print(f"Saved frame at {timestamp:.1f}s - Content Score: {content_score:.3f}")
+            timestamp = frame_count / fps
+            raw_frames.append({
+                'frame': frame.copy(),
+                'timestamp': timestamp,
+                'content_score': calculate_content_density(frame) + calculate_text_area(frame)
+            })
 
         frame_count += 1
 
     cap.release()
-    return saved_frames, frame_timestamps
+    print(f"Collected {len(raw_frames)} raw frames")
+
+    # Stage 2: Filter distinct frames (SSIM < 0.60)
+    print("Stage 2: Filtering distinct frames...")
+    distinct_frames = []
+
+    for i, candidate in enumerate(raw_frames):
+        is_distinct = True
+
+        for saved in distinct_frames:
+            ssim_score = calculate_ssim(candidate['frame'], saved['frame'])
+            if ssim_score > 0.60:
+                is_distinct = False
+                break
+
+        if is_distinct:
+            distinct_frames.append(candidate)
+
+    print(f"Filtered to {len(distinct_frames)} distinct frames")
+
+    # Stage 3: Select best quality frames from similar groups
+    print("Stage 3: Selecting best quality frames...")
+    final_frames = []
+
+    for candidate in distinct_frames:
+        time_window = 10
+        nearby_frames = [
+            f for f in raw_frames
+            if abs(f['timestamp'] - candidate['timestamp']) <= time_window
+        ]
+
+        if nearby_frames:
+            best_frame = max(nearby_frames, key=lambda x: x['content_score'])
+            # Avoid adding duplicate frames
+            if not any(np.array_equal(best_frame['frame'], f['frame']) for f in final_frames):
+                final_frames.append(best_frame)
+
+    print(f"Final selection: {len(final_frames)} frames")
+
+    return [f['frame'] for f in final_frames], [f['timestamp'] for f in final_frames]
+
 
 def create_pdf_from_images(image_paths, pdf_path):
     """
@@ -118,7 +124,6 @@ def create_pdf_from_images(image_paths, pdf_path):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     for i in range(0, len(image_paths), 2):
         pdf.add_page()
-        # Ensure the image path is valid before adding it to the PDF
         if os.path.exists(image_paths[i]):
             pdf.image(image_paths[i], x=10, y=10, w=190)
         if i + 1 < len(image_paths) and os.path.exists(image_paths[i+1]):
@@ -133,12 +138,11 @@ def process_video(video_path):
     if not os.path.exists('frames'):
         os.makedirs('frames')
 
-    saved_frames, _ = enhanced_frame_selection(video_path)
+    saved_frames, _ = multi_stage_capture(video_path)
 
     frame_paths = []
     for i, frame in enumerate(saved_frames):
         frame_path = f"frames/frame_{i}.jpg"
-        # Resize frame to half its original size for saving
         height, width, _ = frame.shape
         resized_frame = cv2.resize(frame, (width // 2, height // 2))
         cv2.imwrite(frame_path, resized_frame)
